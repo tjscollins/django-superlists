@@ -27,7 +27,7 @@ class NewVisitorTest(LiveServerTestCase):
                     raise e
                 time.sleep(0.1)
 
-    def test_can_start_a_list_and_retrieve_it_later(self):
+    def test_can_start_a_list_for_one_user(self):
         # Joe has heard about a cool new online to-do app.  He checks out the app's
         # homepage.
         self.browser.get(self.live_server_url)
@@ -63,11 +63,47 @@ class NewVisitorTest(LiveServerTestCase):
         self.wait_for_row_in_list_table('1: Buy new swingline stapler')
         self.wait_for_row_in_list_table('2: Burn down office and collect insurance money')
 
-        # Joe wonders whether the site will remember his list.  Then he sees that
-        # the site has generated a unique URL for him -- there is some explanatory
-        # text to that effect.
-        self.fail('Finish the test!')
-
-        # He visits that URL -- the to-do list is still there
-
         # Joe closes the browser knowing he can revisit the list
+
+    def test_multiple_users_can_start_lists_at_different_urls(self):
+        # Joe starts a new todo list
+        self.browser.get(self.live_server_url)
+        inputbox = self.browser.find_element_by_id('id_new_item')
+        inputbox.send_keys('Don\'t talk about fight club')
+        inputbox.send_keys(Keys.ENTER)
+        self.wait_for_row_in_list_table('1: Don\'t talk about fight club')
+
+        # He notices that his list has a unique URL
+        joe_list_url = self.browser.current_url
+        self.assertRegex(joe_list_url, '/lists/.+')
+
+        # Now a new user, Eliza, comes along to the site.
+
+        ## We use a new browser session to make sure that no information of
+        ## Joe's is coming through from cookies, etc.
+        self.browser.quit()
+        self.browser = webdriver.Firefox()
+
+        # Eliza visits the home page.  There is no sign of Joe's list.
+        self.browser.get(self.live_server_url)
+        page_text = self.browser.find_element_by_tag_name('body').text
+        self.assertNotIn('Don\'t talk about fight club', page_text)
+        self.assertNotIn('Burn down office', page_text)
+
+        # Eliza starts a new list by entering a new item.
+        inputbox = self.browser.find_element_by_id('id_new_item')
+        inputbox.send_keys('Buy milk')
+        inputbox.send_keys(Keys.ENTER)
+        self.wait_for_row_in_list_table('1: Buy milk')
+
+        # Eliza gets her own unique url
+        eliza_list_url = self.browser.current_url
+        self.assertRegex(eliza_list_url, '/lists/.+')
+        self.assertNotEqual(eliza_list_url, joe_list_url)
+
+        # Again, there's no trace of Joe's list
+        page_text = self.browser.find_element_by_tag_name('body').text
+        self.assertNotIn('Don\'t talk about fight club', page_text)
+        self.assertIn('Buy milk', page_text)
+
+        # Satisfied, they both go back to sleep.
